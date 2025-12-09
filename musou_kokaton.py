@@ -126,6 +126,7 @@ class Bomb(pg.sprite.Sprite):
         self.rect.centerx = emy.rect.centerx
         self.rect.centery = emy.rect.centery+emy.rect.height//2
         self.speed = 6
+        self.state = "active"
 
     def update(self):
         """
@@ -134,6 +135,8 @@ class Bomb(pg.sprite.Sprite):
         """
         self.rect.move_ip(self.speed*self.vx, self.speed*self.vy)
         if check_bound(self.rect) != (True, True):
+            self.kill()
+        if self.state != "active":
             self.kill()
 
 
@@ -242,6 +245,43 @@ class Score:
         screen.blit(self.image, self.rect)
 
 
+class Emp(pg.sprite.Sprite):
+    """
+    発動時に存在する敵機と爆弾を無効化
+    """
+    def __init__(self, emys:pg.sprite.Group, bombs:pg.sprite.Group, screen:pg.Surface):
+        """
+        引数1 emys:
+        引数2 bombs:
+        引数3 screen:
+        """
+        super().__init__()
+        self.emys = emys
+        self.bombs = bombs
+        self.screen = screen
+        self.image = pg.Surface((WIDTH, HEIGHT))
+        pg.draw.rect(self.image, (255, 255, 0), (0, 0, WIDTH, HEIGHT))
+        self.image.set_alpha(128)
+        self.rect = self.image.get_rect()
+
+        self.life = 50
+
+        for emy in self.emys:
+            emy.interval = float("inf")
+            emy.image = pg.transform.laplacian(emy.image)
+        for bomb in self.bombs:
+            bomb.speed //= 2
+            bomb.state = "inactive"
+
+    def update(self):
+        """
+        エフェクト時間を減算し、0になったら消滅
+        """
+        self.life -= 1
+        if self.life < 0:
+            self.kill()
+
+
 def main():
     pg.display.set_caption("真！こうかとん無双")
     screen = pg.display.set_mode((WIDTH, HEIGHT))
@@ -253,6 +293,7 @@ def main():
     beams = pg.sprite.Group()
     exps = pg.sprite.Group()
     emys = pg.sprite.Group()
+    emps = pg.sprite.Group()
 
     tmr = 0
     clock = pg.time.Clock()
@@ -263,6 +304,10 @@ def main():
                 return 0
             if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
                 beams.add(Beam(bird))
+            if event.type == pg.KEYDOWN and event.key == pg.K_e:
+                if score.value >= 20:
+                    emps.add(Emp(emys, bombs, screen))
+                    score.value -= 20
         screen.blit(bg_img, [0, 0])
 
         if tmr%200 == 0:  # 200フレームに1回，敵機を出現させる
@@ -298,6 +343,8 @@ def main():
         bombs.draw(screen)
         exps.update()
         exps.draw(screen)
+        emps.update()
+        emps.draw(screen)
         score.update(screen)
         pg.display.update()
         tmr += 1
